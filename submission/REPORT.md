@@ -25,7 +25,7 @@ Số liệu trước sửa lấy từ `02_error_list_v1.csv`; lỗi cửa vào c
 
 | Tham số | Khởi đầu → chọn | Precision / recall trên calib | Lý do |
 |---|---|---|---|
-| `duplicates.phash_dist` | 2 → **16** | near duplicate: 1.00/0.50 → 1.00/0.83; exact: 1.00/1.00 → 1.00/1.00 | Bắt 5/6 ảnh gần trùng trong khi không có FP; ở 20 precision exact giảm còn 0.33. |
+| `duplicates.phash_dist` | 2 → **16** | near duplicate: 1.00/0.50 → 1.00/0.83; exact: 1.00/1.00 → 1.00/1.00 | Bắt 5/6 ảnh gần trùng trong khi không có FP; ở 20 recall exact giảm còn 0.33. |
 | `second_opinion.conf` | 0.25 → **0.25** | wrong class 0.56/0.83; missing 0.50/1.00; loose box 0.29/0.40; false positive 0.31/1.00 | Giữ ngưỡng khởi đầu để ưu tiên recall cho cảnh báo người xử lý; precision thấp tạo thêm việc xem lại. |
 
 Calibration có thể đánh lừa vì chỉ có 39 ảnh và số lỗi mỗi nhóm nhỏ; ở conf 0.25 chỉ có 5 lỗi loose-box chèn, bắt được 2. Bộ calib cũng không có lỗi LEAK_TEST và khác phân bố raw. Kết quả calib không đảm bảo hiệu năng tương tự trên raw.
