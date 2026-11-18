@@ -1,0 +1,18 @@
+{
+  "verdict": {
+    "decision": "Hold",
+    "n_errors": 0,
+    "n_warn_images": 53,
+    "n_images": 193,
+    "warn_ratio": 0.2746,
+    "reasons": [
+      "Còn 53/193 ảnh có cảnh báo chưa duyệt (27.5%), đạt/vượt ngưỡng giữ 10.0%."
+    ]
+  },
+  "reviewed": 80,
+  "budget": 80,
+  "seconds": 3.3,
+  "exported": "/Users/anhtung/Documents/AIThucChien/Day09-Lab09/K5-L23-Day09-2A202603280-AutoQC-Pipeline-Lab/submission/export/clean_v1",
+  "config_sha1": "85896c93f04260c7e21a36164b433015b5a98bfd",
+  "review_sim_sha1": "7988ca22827f780a7043a2300490e679a1697154"
+}
