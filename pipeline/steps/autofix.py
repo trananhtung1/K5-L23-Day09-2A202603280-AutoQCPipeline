@@ -35,5 +35,89 @@ from ..common import ERROR, parse_yolo_line  # noqa: F401
 
 
 def fix(ds, issues, cfg):
-    # TODO
-    raise NotImplementedError("autofix chưa làm")
+    fixes = []
+    drop_codes = {"BAD_FORMAT", "BAD_CLASS_ID", "BOX_ZERO", "DUP_BOX"}
+    remove_codes = {"DUP_IMAGE_EXACT", "DUP_IMAGE_NEAR", "LEAK_TEST", "CORRUPT_IMAGE", "BAD_SIZE"}
+    per_image = defaultdict(list)
+    remove_images = set()
+    rename = False
+    for issue in issues:
+        if issue.severity != ERROR:
+            continue
+        if issue.code in remove_codes:
+            remove_images.add(issue.image)
+        elif issue.code == "BAD_CLASS_NAME":
+            rename = True
+        elif issue.code == "MISSING_LABEL_FILE":
+            fixes.append({"image": issue.image, "line": "", "action": "needs_label",
+                          "before": "(không có file)", "after": "chuyển người gán"})
+        elif issue.code in drop_codes | {"BOX_OUT_OF_IMAGE"} and issue.line is not None:
+            per_image[issue.image].append(issue)
+
+    for stem in sorted(remove_images):
+        targets = [p for p in ds.image_files() if p.stem == stem]
+        label = ds.label_path(stem)
+        existed = bool(targets or label.exists())
+        for path in targets:
+            path.unlink(missing_ok=True)
+        label.unlink(missing_ok=True)
+        if existed:
+            fixes.append({"image": stem, "line": "", "action": "remove_image",
+                          "before": "ảnh và nhãn trong dataset", "after": "đã loại bỏ"})
+
+    if remove_images:
+        fixes = [f for f in fixes if f["action"] != "needs_label" or f["image"] not in remove_images]
+
+    # Mọi số dòng trong issues là số dòng gốc; áp dụng gộp một lần cho mỗi file.
+    for stem in sorted(per_image):
+        if stem in remove_images:
+            continue
+        path = ds.label_path(stem)
+        if not path.exists():
+            continue
+        original = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        by_line = defaultdict(list)
+        for issue in per_image[stem]:
+            by_line[issue.line].append(issue)
+        output = []
+        for line_no, before in enumerate(original, 1):
+            line_issues = by_line.get(line_no, [])
+            codes = {i.code for i in line_issues}
+            if codes & drop_codes:
+                fixes.append({"image": stem, "line": line_no, "action": "drop_line",
+                              "before": before, "after": "(đã xoá)"})
+                continue
+            if "BOX_OUT_OF_IMAGE" in codes:
+                try:
+                    cls, cx, cy, w, h = parse_yolo_line(before)
+                    x1, y1 = max(0.0, cx - w / 2), max(0.0, cy - h / 2)
+                    x2, y2 = min(1.0, cx + w / 2), min(1.0, cy + h / 2)
+                    nw, nh = x2 - x1, y2 - y1
+                    if nw <= 0 or nh <= 0:
+                        fixes.append({"image": stem, "line": line_no, "action": "drop_line",
+                                      "before": before, "after": "(box nằm ngoài ảnh)"})
+                        continue
+                    after = " ".join(format(v, ".8g") for v in (cls, (x1 + x2) / 2,
+                                                                    (y1 + y2) / 2, nw, nh))
+                    output.append(after)
+                    fixes.append({"image": stem, "line": line_no, "action": "clip_box",
+                                  "before": before, "after": after})
+                    continue
+                except (TypeError, ValueError):
+                    # Dữ liệu có thể đã đổi sau khi issue được tạo; không làm file hỏng thêm.
+                    output.append(before)
+                    continue
+            output.append(before)
+        path.write_text("\n".join(output) + ("\n" if original else ""), encoding="utf-8")
+
+    if rename:
+        path = ds.yaml_path
+        before = path.read_text(encoding="utf-8") if path.exists() else "(không có file)"
+        data = yaml.safe_load(before) if path.exists() else {}
+        data = data or {}
+        data["names"] = list(cfg["classes"])
+        after = yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+        path.write_text(after, encoding="utf-8")
+        fixes.append({"image": "data.yaml", "line": "", "action": "rename_classes",
+                      "before": before, "after": after})
+    return fixes
